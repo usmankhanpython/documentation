@@ -348,9 +348,127 @@ access to property records.
 Separate company data
 =====================
 
-tmp
+In enterprise environments, organizations often need to manage multiple distinct entities within the
+same system. This approach allows different branches, subsidiaries, franchises, or even completely
+different companies to operate independently while sharing common resources and functionalities.
+
+In Odoo, the **multi-company** feature enables managing multiple companies within a single database.
+Each company can have its own configuration and data, while still allowing users to access data from
+multiple companies. This is implemented through several key mechanisms:
+
+- **Company field**: Adding a `company_id` many-to-one field to a model allows linking its records
+  to a specific company (represented by the generic `res.company` model). Records can be:
+
+  - **Company-specific**: When `company_id` has a value, making the record belong to one company.
+  - **Company-shared**: When `company_id` is empty, making the record accessible across all
+    companies.
+
+- **Company-dependent fields**: The `company_dependent=True` attribute set on a field creates a
+  separate value for each company. The values are stored in a JSON object in the database and the
+  right value is automatically retrieved based on the current company.
+- **Company context**: The `with_company(company)` model method changes the company context when
+  accessing data like company-dependent fields, allowing to retrieve values from a specific
+  company's perspective.
+- **Context-aware dependencies**: The `@api.depends_context('company')` decorator ensures that
+  computed fields are computed depending on the current company (`self.env.company`).
+- **Company consistency checks**: The `check_company=True` attribute on a relational field ensures
+  that the linked records either belong to the same company, or are shared records. The check can be
+  made automatic by setting the `_check_company_auto=True` class attribute. Otherwise, the check
+  must be implemented manually by calling the `_check_company` model method.
+- **Company rules**: Record rules can be defined to restrict access to records based on the company
+  they belong to. When their domain is evaluated, the `company_ids` variable contains the companies
+  selected by the current user in the company switcher.
+
+.. example::
+   In the example below, we extend the product and product category models to support multi-company,
+   and define record rules to ensure proper data isolation between companies.
+
+   .. code-block:: python
+
+      class Product(models.Model):
+          _name = 'product'
+          _check_company_auto = True
+
+          company_id = fields.Many2one(string="Company", comodel_name='res.company')
+          price = fields.Float(string="Sales Price", required=True, default=100)
+          cost = fields.Float(string="Manufacturing Cost", company_dependent=True)
+          margin = fields.Float(
+              string="Profit Margin", compute='_compute_margin', inverse='_inverse_margin'
+          )
+          category_id = fields.Many2one(
+              string="Category",
+              comodel_name='product.category',
+              ondelete='restrict',
+              required=True,
+              default=lambda self: self.env.ref('product_tutorial.category_apparel'),
+              check_company=True,
+          )
+
+          @api.depends('price', 'cost')
+          @api.depends_context('company')
+          def _compute_margin(self):
+              for product in self:
+                  product.margin = product.price - product.with_company(product.company_id).cost
+
+      class ProductCategory(models.Model):
+          _name = 'product.category'
+          _check_company_auto = True
+
+          company_id = fields.Many2one(
+              string="Company",
+              comodel_name='res.company',
+              required=True,
+              default=lambda self: self.env.company.id,
+          )
+          product_ids = fields.One2many(
+              string="Products", comodel_name='product', inverse_name='category_id', check_company=True
+          )
+
+   .. note::
+      - A `company_id` field is added to the `product` and `product.category` models, allowing them
+        to be company-specific.
+      - The `company_id` field is optional on the `product` model, allowing products to be shared
+        between companies. It is however required for the `product.category` model, making
+        categories company-specific.
+      - It's a good practice to provide a default value for the `company_id` field, as it eases the
+        creation of new records, especially since the company can be hidden from view when the user
+        doesn't have access to multiple companies.
+      - The `cost` field is company-dependent, giving each company its own cost value for the same
+        product.
+      - The `_compute_margin` method is decorated with `@api.depends_context('company')` to trigger
+        recomputation when switching companies. Although not strictly necessary in this case, it
+        also uses `with_company` to ensure retrieving cost values from te correct company.
+      - The `_check_company_auto=True` attribute is set on both models to ensure that relational
+        fields with the `check_company=True` attribute are properly checked. This prevents linking a
+        product to a category belonging to a different company.
+
+.. seealso::
+   - For more details, see the :ref:`Multi-company guidelines <reference/howtos/company>`.
 
 Let's adapt our real estate app to support multiple agencies while keeping their data separate.
+
+.. exercise::
+   #. Create a second company and assign it to the admin user.
+   #. In the company switcher, tick the checkbox of the new company to have access to both companies
+      at once. Then, switch from one company to another by clicking on the company name.
+   #. todo
+   #. Make properties and offers records company-specific, but allow property types and tags to be
+      shared between companies. Ensure cross-company consistency.
+   #. Add record rules to ensure proper data isolation between companies.
+
+   .. todo: require company_dependent field
+   .. todo: require with_company
+   .. todo: require context_depends
+
+   .. tip::
+      - Reminder: The sources for generic models can be found in the
+        `base <{GITHUB_PATH}/odoo/addons/base/>`_ module.
+      - For some models, you might prefer linking the company to the parent model's company, through
+        a related field, for example
+
+.. spoiler:: Solution
+
+   tmp
 
 .. _tutorials/server_framework_101/bypass_security:
 

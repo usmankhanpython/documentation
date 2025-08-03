@@ -69,3 +69,47 @@ Transfer` account.
 .. seealso::
    - :doc:`reconciliation`
    - :doc:`reconciliation_models`
+
+
+Example 
+Suppose you transfer $2,500 from your Cash Account to Bank C:
+
+    Cash Journal (Cash Account)
+
+    .. list-table::
+    :header-rows: 1
+    :stub-columns: 1
+
+            Account
+
+            Debit
+
+            Credit
+
+            Cash Account
+
+            $2,500
+
+            Internal Transfer Account
+
+            $2,500
+
+    Bank Journal (Bank C)
+
+    .. list-table::
+    :header-rows: 1
+    :stub-columns: 1
+
+            Account
+
+            Debit
+
+            Credit
+
+            Bank C Account
+
+            $2,500
+
+            Internal Transfer Account
+
+            $2,500
